@@ -1,0 +1,48 @@
+import os
+import time
+from instagrapi import Client
+from telegram import Bot
+from dotenv import load_dotenv
+
+load_dotenv()
+
+IG_USERNAME = os.getenv("IG_USERNAME")
+IG_PASSWORD = os.getenv("IG_PASSWORD")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+
+cl = Client()
+cl.login(IG_USERNAME, IG_PASSWORD)
+
+bot = Bot(token=TELEGRAM_BOT_TOKEN)
+
+seen_links = set()
+
+def extract_shortcode(url):
+    try:
+        return url.split("/")[-2]
+    except:
+        return None
+
+def process_direct_messages():
+    threads = cl.direct_threads()
+    for thread in threads:
+        for message in thread.messages:
+            if message.text and "instagram.com/p/" in message.text:
+                post_url = message.text.strip()
+                if post_url in seen_links:
+                    continue
+                seen_links.add(post_url)
+                shortcode = extract_shortcode(post_url)
+                if not shortcode:
+                    continue
+                media = cl.media_info_from_shortcode(shortcode)
+                if media.media_type == 1:
+                    bot.send_photo(chat_id=TELEGRAM_CHAT_ID, photo=media.thumbnail_url)
+                elif media.media_type == 2:
+                    bot.send_video(chat_id=TELEGRAM_CHAT_ID, video=media.video_url)
+
+if __name__ == "__main__":
+    while True:
+        process_direct_messages()
+        time.sleep(20)
